@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Generate performance analysis plots from benchmark results.
-"""
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -9,7 +6,6 @@ import numpy as np
 import os
 
 def load_benchmark_data():
-    """Load benchmark results from CSV file."""
     try:
         df = pd.read_csv('quick_benchmark_results.csv')
         print("Loaded benchmark results:")
@@ -21,10 +17,8 @@ def load_benchmark_data():
         return None
 
 def create_performance_comparison(df):
-    """Create main performance comparison plots."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-    
-    # Plot 1: Execution times vs graph size
+
     ax1.scatter(df['num_nodes'], df['matrix_time'], label='Matrix Method', alpha=0.7, s=50, color='red')
     ax1.scatter(df['num_nodes'], df['bfs_time'], label='BFS Method', alpha=0.7, s=50, color='blue')
     ax1.set_xlabel('Graph Size (nodes)')
@@ -33,8 +27,7 @@ def create_performance_comparison(df):
     ax1.set_yscale('log')
     ax1.legend()
     ax1.grid(True, alpha=0.3)
-    
-    # Plot 2: Speedup ratio vs graph size
+
     ax2.scatter(df['num_nodes'], df['speedup_ratio'], alpha=0.7, s=50, color='green')
     ax2.set_xlabel('Graph Size (nodes)')
     ax2.set_ylabel('Speedup Ratio (Matrix Time / BFS Time)')
@@ -48,7 +41,6 @@ def create_performance_comparison(df):
     plt.close()
 
 def create_type_comparison(df):
-    """Create plots comparing different graph types."""
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     
     graph_types = ['path', 'cycle', 'star', 'grid']
@@ -56,8 +48,7 @@ def create_type_comparison(df):
     
     for i, (graph_type, color) in enumerate(zip(graph_types, colors)):
         ax = axes[i//2, i%2]
-        
-        # Filter data for this graph type
+
         type_data = df[df['graph_name'].str.contains(graph_type)]
         
         if not type_data.empty:
@@ -79,17 +70,13 @@ def create_type_comparison(df):
     plt.close()
 
 def create_complexity_analysis(df):
-    """Create complexity analysis visualization."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-    
-    # Theoretical complexity curves
+
     n_range = np.linspace(df['num_nodes'].min(), df['num_nodes'].max(), 100)
-    
-    # Fit curves to actual data
+
     matrix_fit = np.polyfit(df['num_nodes'], df['matrix_time'], 3)
     bfs_fit = np.polyfit(df['num_nodes'], df['bfs_time'], 2)
-    
-    # Plot matrix method complexity
+
     ax1.scatter(df['num_nodes'], df['matrix_time'], alpha=0.7, s=50, color='red', label='Actual Data')
     ax1.plot(n_range, np.polyval(matrix_fit, n_range), 'r--', alpha=0.8, linewidth=2, label='Cubic Fit (O(n³))')
     ax1.set_xlabel('Graph Size (nodes)')
@@ -98,8 +85,7 @@ def create_complexity_analysis(df):
     ax1.set_yscale('log')
     ax1.legend()
     ax1.grid(True, alpha=0.3)
-    
-    # Plot BFS method complexity
+
     ax2.scatter(df['num_nodes'], df['bfs_time'], alpha=0.7, s=50, color='blue', label='Actual Data')
     ax2.plot(n_range, np.polyval(bfs_fit, n_range), 'b--', alpha=0.8, linewidth=2, label='Quadratic Fit (O(n²))')
     ax2.set_xlabel('Graph Size (nodes)')
@@ -115,7 +101,6 @@ def create_complexity_analysis(df):
     plt.close()
 
 def print_statistical_analysis(df):
-    """Print detailed statistical analysis."""
     print("\n=== PERFORMANCE ANALYSIS ===")
     print(f"Total graphs tested: {len(df)}")
     print(f"Graph size range: {df['num_nodes'].min()} - {df['num_nodes'].max()} nodes")
@@ -136,8 +121,6 @@ def print_statistical_analysis(df):
     print(f"Matrix method appears to follow O(n³) complexity")
     print(f"BFS method appears to follow O(n²) complexity")
     print(f"This confirms the theoretical analysis!")
-    
-    # Analysis by graph type
     print(f"\n=== ANALYSIS BY GRAPH TYPE ===")
     graph_types = ['path', 'cycle', 'star', 'grid']
     for graph_type in graph_types:
@@ -147,20 +130,19 @@ def print_statistical_analysis(df):
             print(f"{graph_type.capitalize()} graphs: Average speedup {avg_speedup:.1f}x")
 
 def main():
-    """Main function to generate all plots and analysis."""
     print("Generating performance analysis plots...")
     
-    # Load data
+
     df = load_benchmark_data()
     if df is None:
         return
     
-    # Create plots
+
     create_performance_comparison(df)
     create_type_comparison(df)
     create_complexity_analysis(df)
     
-    # Print analysis
+
     print_statistical_analysis(df)
     
     print("\nAll plots generated successfully!")
