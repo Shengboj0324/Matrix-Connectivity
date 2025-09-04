@@ -1,0 +1,564 @@
+// Graph Editor JavaScript
+class GraphEditor {
+    constructor() {
+        this.canvas = document.getElementById('graphCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.nodes = [];
+        this.edges = [];
+        this.mode = 'select';
+        this.selectedNode = null;
+        this.draggedNode = null;
+        this.edgeStart = null;
+        this.nextNodeId = 0;
+        
+        this.setupEventListeners();
+        this.updateDisplay();
+    }
+    
+    setupEventListeners() {
+        this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+        this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+        this.canvas.addEventListener('click', (e) => this.handleClick(e));
+    }
+    
+    getMousePos(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+    }
+    
+    findNodeAt(x, y) {
+        return this.nodes.find(node => {
+            const dx = node.x - x;
+            const dy = node.y - y;
+            return Math.sqrt(dx * dx + dy * dy) <= 20;
+        });
+    }
+    
+    findEdgeAt(x, y) {
+        for (let edge of this.edges) {
+            const fromNode = this.nodes.find(n => n.id === edge.from);
+            const toNode = this.nodes.find(n => n.id === edge.to);
+            
+            if (fromNode && toNode) {
+                const dist = this.distanceToLine(x, y, fromNode.x, fromNode.y, toNode.x, toNode.y);
+                if (dist <= 5) {
+                    return edge;
+                }
+            }
+        }
+        return null;
+    }
+    
+    distanceToLine(px, py, x1, y1, x2, y2) {
+        const A = px - x1;
+        const B = py - y1;
+        const C = x2 - x1;
+        const D = y2 - y1;
+        
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+        
+        if (lenSq === 0) return Math.sqrt(A * A + B * B);
+        
+        const param = dot / lenSq;
+        
+        let xx, yy;
+        if (param < 0) {
+            xx = x1;
+            yy = y1;
+        } else if (param > 1) {
+            xx = x2;
+            yy = y2;
+        } else {
+            xx = x1 + param * C;
+            yy = y1 + param * D;
+        }
+        
+        const dx = px - xx;
+        const dy = py - yy;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    
+    handleMouseDown(e) {
+        const pos = this.getMousePos(e);
+        const node = this.findNodeAt(pos.x, pos.y);
+        
+        if (this.mode === 'select' && node) {
+            this.draggedNode = node;
+            this.selectedNode = node;
+        }
+    }
+    
+    handleMouseMove(e) {
+        if (this.draggedNode && this.mode === 'select') {
+            const pos = this.getMousePos(e);
+            this.draggedNode.x = pos.x;
+            this.draggedNode.y = pos.y;
+            this.draw();
+        }
+    }
+    
+    handleMouseUp(e) {
+        this.draggedNode = null;
+    }
+    
+    handleClick(e) {
+        const pos = this.getMousePos(e);
+        const node = this.findNodeAt(pos.x, pos.y);
+        const edge = this.findEdgeAt(pos.x, pos.y);
+        
+        switch (this.mode) {
+            case 'addNode':
+                if (!node) {
+                    this.addNode(pos.x, pos.y);
+                }
+                break;
+                
+            case 'addEdge':
+                if (node) {
+                    if (!this.edgeStart) {
+                        this.edgeStart = node;
+                        this.selectedNode = node;
+                    } else if (this.edgeStart !== node) {
+                        this.addEdge(this.edgeStart.id, node.id);
+                        this.edgeStart = null;
+                        this.selectedNode = null;
+                    }
+                } else {
+                    this.edgeStart = null;
+                    this.selectedNode = null;
+                }
+                break;
+                
+            case 'delete':
+                if (node) {
+                    this.deleteNode(node.id);
+                } else if (edge) {
+                    this.deleteEdge(edge);
+                }
+                break;
+                
+            case 'select':
+                this.selectedNode = node;
+                break;
+        }
+        
+        this.draw();
+        this.updateStats();
+    }
+    
+    addNode(x, y) {
+        const node = {
+            id: this.nextNodeId++,
+            x: x,
+            y: y
+        };
+        this.nodes.push(node);
+    }
+    
+    addEdge(fromId, toId) {
+        // Check if edge already exists
+        const exists = this.edges.some(edge => 
+            (edge.from === fromId && edge.to === toId) ||
+            (edge.from === toId && edge.to === fromId)
+        );
+        
+        if (!exists) {
+            this.edges.push({ from: fromId, to: toId });
+        }
+    }
+    
+    deleteNode(nodeId) {
+        this.nodes = this.nodes.filter(node => node.id !== nodeId);
+        this.edges = this.edges.filter(edge => edge.from !== nodeId && edge.to !== nodeId);
+        this.selectedNode = null;
+    }
+    
+    deleteEdge(edge) {
+        this.edges = this.edges.filter(e => e !== edge);
+    }
+    
+    draw() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Draw edges
+        this.ctx.strokeStyle = '#34495e';
+        this.ctx.lineWidth = 2;
+        
+        for (let edge of this.edges) {
+            const fromNode = this.nodes.find(n => n.id === edge.from);
+            const toNode = this.nodes.find(n => n.id === edge.to);
+            
+            if (fromNode && toNode) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(fromNode.x, fromNode.y);
+                this.ctx.lineTo(toNode.x, toNode.y);
+                this.ctx.stroke();
+            }
+        }
+        
+        // Draw nodes
+        for (let node of this.nodes) {
+            this.ctx.beginPath();
+            this.ctx.arc(node.x, node.y, 20, 0, 2 * Math.PI);
+            
+            if (node === this.selectedNode) {
+                this.ctx.fillStyle = '#e74c3c';
+            } else if (node === this.edgeStart) {
+                this.ctx.fillStyle = '#f39c12';
+            } else {
+                this.ctx.fillStyle = '#3498db';
+            }
+            
+            this.ctx.fill();
+            this.ctx.strokeStyle = '#2c3e50';
+            this.ctx.lineWidth = 2;
+            this.ctx.stroke();
+            
+            // Draw node ID
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '14px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(node.id.toString(), node.x, node.y);
+        }
+    }
+    
+    updateStats() {
+        document.getElementById('nodeCount').textContent = this.nodes.length;
+        document.getElementById('edgeCount').textContent = this.edges.length;
+        
+        // Simple connectivity check (for undirected graphs)
+        const isConnected = this.nodes.length <= 1 || this.isGraphConnected();
+        document.getElementById('isConnected').textContent = isConnected ? 'Yes' : 'No';
+    }
+    
+    isGraphConnected() {
+        if (this.nodes.length === 0) return true;
+        
+        const visited = new Set();
+        const queue = [this.nodes[0].id];
+        visited.add(this.nodes[0].id);
+        
+        while (queue.length > 0) {
+            const currentId = queue.shift();
+            
+            for (let edge of this.edges) {
+                let neighborId = null;
+                if (edge.from === currentId) neighborId = edge.to;
+                else if (edge.to === currentId) neighborId = edge.from;
+                
+                if (neighborId !== null && !visited.has(neighborId)) {
+                    visited.add(neighborId);
+                    queue.push(neighborId);
+                }
+            }
+        }
+        
+        return visited.size === this.nodes.length;
+    }
+    
+    updateDisplay() {
+        this.draw();
+        this.updateStats();
+    }
+    
+    clear() {
+        this.nodes = [];
+        this.edges = [];
+        this.selectedNode = null;
+        this.edgeStart = null;
+        this.nextNodeId = 0;
+        this.updateDisplay();
+    }
+    
+    exportGraph() {
+        const graphData = {
+            name: `custom_graph_${Date.now()}`,
+            description: `Custom graph with ${this.nodes.length} nodes`,
+            nodes: this.nodes.map(node => ({ id: node.id, x: node.x, y: node.y })),
+            edges: this.edges.map(edge => ({ from: edge.from, to: edge.to }))
+        };
+        
+        const dataStr = JSON.stringify(graphData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${graphData.name}.json`;
+        link.click();
+        
+        URL.revokeObjectURL(url);
+    }
+    
+    importGraph(graphData) {
+        this.clear();
+        
+        if (graphData.nodes) {
+            this.nodes = graphData.nodes.map(node => ({
+                id: node.id,
+                x: node.x,
+                y: node.y
+            }));
+            
+            this.nextNodeId = Math.max(...this.nodes.map(n => n.id)) + 1;
+        }
+        
+        if (graphData.edges) {
+            this.edges = graphData.edges.map(edge => ({
+                from: edge.from,
+                to: edge.to
+            }));
+        }
+        
+        this.updateDisplay();
+    }
+}
+
+// Global variables and functions
+let editor;
+
+function init() {
+    editor = new GraphEditor();
+}
+
+function setMode(mode) {
+    editor.mode = mode;
+    editor.selectedNode = null;
+    editor.edgeStart = null;
+    
+    const indicator = document.getElementById('modeIndicator');
+    const description = document.getElementById('modeDescription');
+    
+    switch (mode) {
+        case 'addNode':
+            indicator.textContent = 'Add Node';
+            indicator.className = 'mode-indicator mode-add-node';
+            description.textContent = 'Click on empty space to add nodes';
+            break;
+        case 'addEdge':
+            indicator.textContent = 'Add Edge';
+            indicator.className = 'mode-indicator mode-add-edge';
+            description.textContent = 'Click two nodes to connect them';
+            break;
+        case 'delete':
+            indicator.textContent = 'Delete';
+            indicator.className = 'mode-indicator mode-delete';
+            description.textContent = 'Click on nodes or edges to delete them';
+            break;
+        case 'select':
+            indicator.textContent = 'Select';
+            indicator.className = 'mode-indicator mode-select';
+            description.textContent = 'Click and drag to move nodes';
+            break;
+    }
+    
+    editor.draw();
+}
+
+function clearGraph() {
+    if (confirm('Are you sure you want to clear the entire graph?')) {
+        editor.clear();
+    }
+}
+
+function exportGraph() {
+    editor.exportGraph();
+}
+
+function importGraph() {
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+    
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const graphData = JSON.parse(e.target.result);
+                editor.importGraph(graphData);
+            } catch (error) {
+                alert('Error reading file: ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+    }
+}
+
+function generateSample(type) {
+    let graphData;
+
+    switch (type) {
+        case 'path':
+            graphData = {
+                name: 'sample_path',
+                nodes: [
+                    {id: 0, x: 100, y: 280}, {id: 1, x: 200, y: 280},
+                    {id: 2, x: 300, y: 280}, {id: 3, x: 400, y: 280},
+                    {id: 4, x: 500, y: 280}
+                ],
+                edges: [
+                    {from: 0, to: 1}, {from: 1, to: 2},
+                    {from: 2, to: 3}, {from: 3, to: 4}
+                ]
+            };
+            break;
+
+        case 'cycle':
+            graphData = {
+                name: 'sample_cycle',
+                nodes: [
+                    {id: 0, x: 300, y: 150}, {id: 1, x: 450, y: 200},
+                    {id: 2, x: 500, y: 350}, {id: 3, x: 350, y: 450},
+                    {id: 4, x: 200, y: 400}, {id: 5, x: 150, y: 250}
+                ],
+                edges: [
+                    {from: 0, to: 1}, {from: 1, to: 2}, {from: 2, to: 3},
+                    {from: 3, to: 4}, {from: 4, to: 5}, {from: 5, to: 0}
+                ]
+            };
+            break;
+
+        case 'star':
+            graphData = {
+                name: 'sample_star',
+                nodes: [
+                    {id: 0, x: 300, y: 280},
+                    {id: 1, x: 300, y: 180}, {id: 2, x: 400, y: 230},
+                    {id: 3, x: 450, y: 330}, {id: 4, x: 350, y: 380},
+                    {id: 5, x: 250, y: 380}, {id: 6, x: 150, y: 330},
+                    {id: 7, x: 200, y: 230}
+                ],
+                edges: [
+                    {from: 0, to: 1}, {from: 0, to: 2}, {from: 0, to: 3},
+                    {from: 0, to: 4}, {from: 0, to: 5}, {from: 0, to: 6},
+                    {from: 0, to: 7}
+                ]
+            };
+            break;
+    }
+
+    if (graphData) {
+        editor.importGraph(graphData);
+    }
+}
+
+async function runDiscovery() {
+    if (editor.nodes.length === 0) {
+        alert('Please create a graph first');
+        return;
+    }
+
+    const btn = document.getElementById('discoveryBtn');
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+
+    try {
+        const graphData = {
+            nodes: editor.nodes,
+            edges: editor.edges
+        };
+
+        const response = await fetch('/api/discovery', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(graphData)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            displayDiscoveryResults(result.results);
+        } else {
+            alert('Discovery failed: ' + result.error);
+        }
+    } catch (error) {
+        alert('Discovery failed: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run Discovery';
+    }
+}
+
+async function runBenchmark() {
+    if (editor.nodes.length === 0) {
+        alert('Please create a graph first');
+        return;
+    }
+
+    const btn = document.getElementById('benchmarkBtn');
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+
+    try {
+        const graphData = {
+            nodes: editor.nodes,
+            edges: editor.edges
+        };
+
+        const response = await fetch('/api/benchmark', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(graphData)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            displayBenchmarkResults(result.results);
+        } else {
+            alert('Benchmark failed: ' + result.error);
+        }
+    } catch (error) {
+        alert('Benchmark failed: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Benchmark';
+    }
+}
+
+function displayDiscoveryResults(results) {
+    const discoveryDiv = document.getElementById('discoveryResults');
+    discoveryDiv.innerHTML = `
+        <p><strong>Connectivity:</strong> ${(results.connectivity_ratio * 100).toFixed(1)}%</p>
+        <p><strong>Strongly Connected:</strong> ${results.is_strongly_connected ? 'Yes' : 'No'}</p>
+        <p><strong>Connected Pairs:</strong> ${results.connected_pairs}/${results.total_pairs}</p>
+        <p><strong>Methods Agree:</strong> ${results.methods_agree ? 'Yes' : 'No'}</p>
+    `;
+
+    const matrixDiv = document.getElementById('matrixPowers');
+    let matrixHtml = '<p><strong>Matrix Powers (A^k):</strong></p>';
+    for (const [k, matrix] of Object.entries(results.matrix_powers)) {
+        if (k !== '0' && matrix.length <= 6) {
+            matrixHtml += `<p><strong>A^${k}:</strong></p>`;
+            matrixHtml += '<table style="font-family: monospace; font-size: 12px;">';
+            for (const row of matrix) {
+                matrixHtml += '<tr>';
+                for (const val of row) {
+                    matrixHtml += `<td style="padding: 2px 4px; text-align: center;">${val}</td>`;
+                }
+                matrixHtml += '</tr>';
+            }
+            matrixHtml += '</table>';
+        }
+    }
+    matrixDiv.innerHTML = matrixHtml;
+}
+
+function displayBenchmarkResults(results) {
+    const benchmarkDiv = document.getElementById('benchmarkResults');
+    const speedup = results.speedup_ratio.toFixed(1);
+    benchmarkDiv.innerHTML = `
+        <p><strong>Graph Size:</strong> ${results.num_nodes} nodes</p>
+        <p><strong>Matrix Time:</strong> ${(results.matrix_time * 1000).toFixed(3)}ms</p>
+        <p><strong>BFS Time:</strong> ${(results.bfs_time * 1000).toFixed(3)}ms</p>
+        <p><strong>BFS Speedup:</strong> ${speedup}x</p>
+        <p><strong>Results Match:</strong> ${results.results_match ? 'Yes' : 'No'}</p>
+    `;
+}
+
+window.addEventListener('load', init);
