@@ -245,11 +245,3 @@ The investigation demonstrates that matrix multiplication provides a mathematica
 ### 8.2 Computational Implications
 
 The matrix approach offers mathematical insight but has O(n⁴) complexity, making it impractical for large graphs. Direct graph algorithms achieve O(n²) complexity and outperform matrix methods for practical applications. This demonstrates the trade-off between mathematical insight and computational efficiency.
-
-### 8.3 Educational Significance
-
-The matrix multiplication approach serves as an effective teaching tool for understanding connectivity foundations. The discovery-based methodology demonstrates how computational exploration can lead to mathematical understanding and reveal connections between different mathematical areas.
-
-### 8.4 Future Directions
-
-Future work could explore matrix methods for weighted graphs, directed networks, or more complex connectivity properties like k-connectivity and graph clustering. These extensions could reveal additional mathematical insights about the relationship between algebra and graph structure.
